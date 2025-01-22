@@ -178,6 +178,8 @@ void ThreadFunction(HANDLE event_handle)
 
 int main()
 {
+    ShowWindow(GetConsoleWindow(), SW_HIDE);
+
     HANDLE handle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
     std::thread message_thread(ThreadFunction, handle);
 
