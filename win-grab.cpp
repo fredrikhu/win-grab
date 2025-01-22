@@ -7,6 +7,7 @@ typedef struct KEYBOARDEVENT {
     int keyboard_code;
     bool has_stored_keyboard_event;
     bool ignore_next_input;
+    bool used_shortcut;
 } KEYBOARDEVENT;
 
 DWORD threadId{};
@@ -106,14 +107,24 @@ LRESULT CALLBACK ProcessKeyboard(int code, WPARAM wParam, LPARAM lParam)
         {
             win_key_pressed = false;
             if (stored_keyboard_event.has_stored_keyboard_event)
+            {
                 SimulateKeyboardEvent();
+            }
+            else if (stored_keyboard_event.used_shortcut)
+            {
+                stored_keyboard_event.used_shortcut = false;
+                return CallNextHookEx(NULL, code, wParam, lParam);
+            }
             else
+            {
                 return -1;
+            }
         }
     }
     else if (stored_keyboard_event.has_stored_keyboard_event)
     {
         SimulateKeyboardEvent();
+        stored_keyboard_event.used_shortcut = true;
     }
 
     return CallNextHookEx(NULL, code, wParam, lParam);
@@ -248,4 +259,9 @@ int main()
     CloseHandle(handle);
 
     message_thread.join();
+}
+
+int __stdcall WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
+{
+    return main();
 }
