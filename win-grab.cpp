@@ -184,8 +184,5 @@ int main()
     WaitForSingleObject(handle, INFINITE);
     CloseHandle(handle);
 
-    PostThreadMessage(threadId, WM_APP + 1, 1, 2);
-    PostThreadMessage(threadId, WM_APP + 2, 10, 20);
-
     message_thread.join();
 }
