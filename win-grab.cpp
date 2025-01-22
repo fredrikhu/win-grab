@@ -66,17 +66,22 @@ POINT GetMouseDelta(POINT)
 
 void SimulateKeyboardEvent()
 {
-    INPUT ip;
-    ip.type = INPUT_KEYBOARD;
-    ip.ki.wScan = 0;
-    ip.ki.time = 0;
-    ip.ki.dwExtraInfo = 0;
+    INPUT ip =
+    {
+        .type = INPUT_KEYBOARD,
+        .ki =
+        {
+            .wVk = (WORD)stored_keyboard_event.keyboard_struct.vkCode,
+            .wScan = 0,
+            .dwFlags = 0,
+            .time = 0,
+            .dwExtraInfo = 0,
+        }
+    };
 
-    // Press the "A" key
-    ip.ki.wVk = (WORD)stored_keyboard_event.keyboard_struct.vkCode;
-    ip.ki.dwFlags = 0;
     stored_keyboard_event.has_stored_keyboard_event = false;
     stored_keyboard_event.ignore_next_input = true;
+
     SendInput(1, &ip, sizeof(INPUT));
 }
 
@@ -92,7 +97,8 @@ LRESULT CALLBACK ProcessKeyboard(int code, WPARAM wParam, LPARAM lParam)
                 return -1;
 
             win_key_pressed = true;
-            stored_keyboard_event = {
+            stored_keyboard_event =
+            {
                 .keyboard_struct = *info,
                 .keyboard_code = code,
                 .has_stored_keyboard_event = true,
