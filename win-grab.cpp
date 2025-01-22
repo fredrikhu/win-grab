@@ -261,7 +261,7 @@ int main()
     message_thread.join();
 }
 
-int __stdcall WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
+int __stdcall WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int)
 {
     return main();
 }
