@@ -2,6 +2,13 @@
 #include <thread>
 #include <iostream>
 
+typedef struct KEYBOARDEVENT {
+    KBDLLHOOKSTRUCT keyboard_struct;
+    int keyboard_code;
+    bool has_stored_keyboard_event;
+    bool ignore_next_input;
+} KEYBOARDEVENT;
+
 DWORD threadId{};
 bool win_key_pressed = false;
 bool left_mouse_pressed = false;
@@ -9,18 +16,19 @@ bool middle_mouse_pressed = false;
 HWND active_window;
 POINT start_mouse_position = { 0 };
 RECT start_window_position = { 0 };
+KEYBOARDEVENT stored_keyboard_event = { 0 };
 
-void SetStartMouseState(MSLLHOOKSTRUCT *info)
+void SetStartMouseState(MSLLHOOKSTRUCT *)
 {
     active_window = 0;
 
-    start_mouse_position.x = info->pt.x;
-    start_mouse_position.y = info->pt.y;
+    GetPhysicalCursorPos(&start_mouse_position);
 }
 
 void SetStartWindowState()
 {
-    active_window = GetForegroundWindow();
+    active_window = WindowFromPhysicalPoint(start_mouse_position);
+    active_window = GetAncestor(active_window, GA_ROOT);
     RECT window_rect{ 0 };
     GetWindowRect(active_window, &window_rect);
 
@@ -43,13 +51,32 @@ void MoveWindow(RECT new_window_position)
     );
 }
 
-POINT GetMouseDelta(POINT mouse_position)
+POINT GetMouseDelta(POINT)
 {
+    POINT mouse_position = { 0 };
+    GetPhysicalCursorPos(&mouse_position);
+
     return POINT
     {
         .x = mouse_position.x - start_mouse_position.x,
         .y = mouse_position.y - start_mouse_position.y,
     };
+}
+
+void SimulateKeyboardEvent()
+{
+    INPUT ip;
+    ip.type = INPUT_KEYBOARD;
+    ip.ki.wScan = 0;
+    ip.ki.time = 0;
+    ip.ki.dwExtraInfo = 0;
+
+    // Press the "A" key
+    ip.ki.wVk = (WORD)stored_keyboard_event.keyboard_struct.vkCode;
+    ip.ki.dwFlags = 0;
+    stored_keyboard_event.has_stored_keyboard_event = false;
+    stored_keyboard_event.ignore_next_input = true;
+    SendInput(1, &ip, sizeof(INPUT));
 }
 
 LRESULT CALLBACK ProcessKeyboard(int code, WPARAM wParam, LPARAM lParam)
@@ -58,10 +85,35 @@ LRESULT CALLBACK ProcessKeyboard(int code, WPARAM wParam, LPARAM lParam)
 
     if (info->vkCode == VK_LWIN || info->vkCode == VK_RWIN)
     {
-        if (wParam == WM_KEYDOWN)
+        if (wParam == WM_KEYDOWN && !stored_keyboard_event.ignore_next_input)
+        {
+            if (win_key_pressed)
+                return -1;
+
             win_key_pressed = true;
-        if (wParam == WM_KEYUP)
+            stored_keyboard_event = {
+                .keyboard_struct = *info,
+                .keyboard_code = code,
+                .has_stored_keyboard_event = true,
+            };
+            return -1;
+        }
+        else if (wParam == WM_KEYDOWN)
+        {
+            stored_keyboard_event.ignore_next_input = false;
+        }
+        else if (wParam == WM_KEYUP)
+        {
             win_key_pressed = false;
+            if (stored_keyboard_event.has_stored_keyboard_event)
+                SimulateKeyboardEvent();
+            else
+                return -1;
+        }
+    }
+    else if (stored_keyboard_event.has_stored_keyboard_event)
+    {
+        SimulateKeyboardEvent();
     }
 
     return CallNextHookEx(NULL, code, wParam, lParam);
@@ -81,8 +133,10 @@ LRESULT CALLBACK ProcessMouse(int code, WPARAM wParam, LPARAM lParam)
     if (wParam == WM_LBUTTONDOWN && !middle_mouse_pressed)
     {
         SetStartMouseState(info);
-
         left_mouse_pressed = true;
+
+        CallNextHookEx(NULL, code, wParam, lParam);
+        return -1;
     }
     else if (wParam == WM_LBUTTONUP)
     {
@@ -91,15 +145,22 @@ LRESULT CALLBACK ProcessMouse(int code, WPARAM wParam, LPARAM lParam)
     else if (wParam == WM_MBUTTONDOWN && !left_mouse_pressed)
     {
         SetStartMouseState(info);
-
         middle_mouse_pressed = true;
+
+        CallNextHookEx(NULL, code, wParam, lParam);
+        return -1;
     }
-    else if (wParam == WM_MBUTTONUP)
+    else if (wParam == WM_MBUTTONUP && middle_mouse_pressed)
     {
         middle_mouse_pressed = false;
+
+        CallNextHookEx(NULL, code, wParam, lParam);
+        return -1;
     }
     else if (wParam == WM_MOUSEMOVE && left_mouse_pressed && win_key_pressed)
     {
+        stored_keyboard_event.has_stored_keyboard_event = false;
+
         if (active_window == 0)
         {
             SetStartWindowState();
@@ -120,6 +181,8 @@ LRESULT CALLBACK ProcessMouse(int code, WPARAM wParam, LPARAM lParam)
     }
     else if (wParam == WM_MOUSEMOVE && middle_mouse_pressed && win_key_pressed)
     {
+        stored_keyboard_event.has_stored_keyboard_event = false;
+
         if (active_window == 0)
         {
             SetStartWindowState();
@@ -178,8 +241,6 @@ void ThreadFunction(HANDLE event_handle)
 
 int main()
 {
-    ShowWindow(GetConsoleWindow(), SW_HIDE);
-
     HANDLE handle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
     std::thread message_thread(ThreadFunction, handle);
 
