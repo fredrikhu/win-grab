@@ -1,6 +1,5 @@
 #include <Windows.h>
 #include <thread>
-#include <iostream>
 
 typedef struct KEYBOARDEVENT {
     KBDLLHOOKSTRUCT keyboard_struct;
@@ -30,13 +29,8 @@ void SetStartWindowState()
 {
     active_window = WindowFromPhysicalPoint(start_mouse_position);
     active_window = GetAncestor(active_window, GA_ROOT);
-    RECT window_rect{ 0 };
-    GetWindowRect(active_window, &window_rect);
 
-    start_window_position.left = window_rect.left;
-    start_window_position.top = window_rect.top;
-    start_window_position.right = window_rect.right;
-    start_window_position.bottom = window_rect.bottom;
+    GetWindowRect(active_window, &start_window_position);
 }
 
 void MoveWindow(RECT new_window_position)
