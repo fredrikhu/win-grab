@@ -9,7 +9,7 @@ typedef struct KEYBOARDEVENT {
     bool used_shortcut;
 } KEYBOARDEVENT;
 
-DWORD threadId{};
+DWORD threadId = { 0 };
 bool win_key_pressed = false;
 bool left_mouse_pressed = false;
 bool middle_mouse_pressed = false;
@@ -21,7 +21,6 @@ KEYBOARDEVENT stored_keyboard_event = { 0 };
 void SetStartMouseState(MSLLHOOKSTRUCT *)
 {
     active_window = 0;
-
     GetPhysicalCursorPos(&start_mouse_position);
 }
 
@@ -60,7 +59,7 @@ POINT GetMouseDelta(POINT)
 
 void SimulateKeyboardEvent()
 {
-    INPUT ip =
+    INPUT input =
     {
         .type = INPUT_KEYBOARD,
         .ki =
@@ -76,7 +75,7 @@ void SimulateKeyboardEvent()
     stored_keyboard_event.has_stored_keyboard_event = false;
     stored_keyboard_event.ignore_next_input = true;
 
-    SendInput(1, &ip, sizeof(INPUT));
+    SendInput(1, &input, sizeof(INPUT));
 }
 
 LRESULT CALLBACK ProcessKeyboard(int code, WPARAM wParam, LPARAM lParam)
@@ -97,6 +96,7 @@ LRESULT CALLBACK ProcessKeyboard(int code, WPARAM wParam, LPARAM lParam)
                 .keyboard_code = code,
                 .has_stored_keyboard_event = true,
             };
+
             return -1;
         }
         else if (wParam == WM_KEYDOWN)
@@ -217,37 +217,23 @@ LRESULT CALLBACK ProcessMouse(int code, WPARAM wParam, LPARAM lParam)
     return CallNextHookEx(NULL, code, wParam, lParam);
 }
 
-bool CtrlHandler(int signal)
-{
-    if (signal == CTRL_C_EVENT)
-        PostThreadMessage(threadId, WM_CLOSE, 0, 0);
-
-    return true;
-}
-
 void ThreadFunction(HANDLE event_handle)
 {
     threadId = GetCurrentThreadId();
     SetEvent(event_handle);
 
-    SetConsoleCtrlHandler((PHANDLER_ROUTINE)CtrlHandler, TRUE);
-
-    HHOOK keyboard_hook = SetWindowsHookEx(WH_KEYBOARD_LL, ProcessKeyboard, nullptr, 0);
-    HHOOK mouse_hook = SetWindowsHookEx(WH_MOUSE_LL, ProcessMouse, nullptr, 0);
+    SetWindowsHookEx(WH_KEYBOARD_LL, ProcessKeyboard, nullptr, 0);
+    SetWindowsHookEx(WH_MOUSE_LL, ProcessMouse, nullptr, 0);
 
     MSG msg = { 0 };
-    BOOL result;
 
     while (true)
     {
-        result = GetMessage(&msg, nullptr, 0, 0);
+        BOOL result = GetMessage(&msg, nullptr, 0, 0);
 
         if (result <= 0 || msg.message == WM_CLOSE)
             break;
     }
-
-    UnhookWindowsHookEx(keyboard_hook);
-    UnhookWindowsHookEx(mouse_hook);
 }
 
 int main()
